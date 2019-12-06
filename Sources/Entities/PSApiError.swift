@@ -6,6 +6,7 @@ public class PSApiError: Mappable, Error {
     public var statusCode: Int?
     public var description: String?
     public var properties: [String: Any]?
+    public var data: Any?
     public var errors: [PSApiFieldError]?
     
     public init(error: String? = nil, description: String? = nil, statusCode: Int? = nil) {
@@ -22,6 +23,7 @@ public class PSApiError: Mappable, Error {
         errors      <- map["errors"]
         description <- map["error_description"]
         properties  <- map["error_properties"]
+        data        <- map["error_data"]
     }
     
     public func isUnauthorized() -> Bool {
