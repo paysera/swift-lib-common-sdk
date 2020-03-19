@@ -10,6 +10,8 @@ open class PSBaseApiClient {
     private let logger: PSLoggerProtocol?
     private var requestsQueue = [PSApiRequest]()
     
+    private var refreshPromise: Promise<Bool>?
+    
     public init(
         session: Session,
         credentials: PSApiJWTCredentials,
@@ -65,10 +67,10 @@ open class PSBaseApiClient {
     private func makeRequest(apiRequest: PSApiRequest) {
         guard let urlRequest = apiRequest.requestEndPoint.urlRequest else { return }
         
-        let lockQueue = DispatchQueue(label: String(describing: tokenRefresher), attributes: [])
-        lockQueue.sync {
-            if let tokenRefresher = tokenRefresher, tokenRefresher.isRefreshing() {
-                requestsQueue.append(apiRequest)
+        getLockQueue().sync {
+            if self.credentials.isExpired() {
+                self.requestsQueue.append(apiRequest)
+                self.refreshToken()
             } else {
                 self.logger?.log(
                     level: .DEBUG,
@@ -76,7 +78,7 @@ open class PSBaseApiClient {
                     request: urlRequest
                 )
                 
-                session
+                self.session
                     .request(apiRequest.requestEndPoint)
                     .responseJSON { (response) in
                         guard let urlResponse = response.response else {
@@ -106,27 +108,18 @@ open class PSBaseApiClient {
                             )
                             
                             if statusCode == 401 {
-                                guard let tokenRefresher = self.tokenRefresher else {
+                                guard self.tokenRefresher != nil else {
                                     apiRequest.pendingPromise.resolver.reject(error)
                                     return
                                 }
-                                lockQueue.sync {
+                                self.getLockQueue().sync {
                                     if self.credentials.hasRecentlyRefreshed() {
                                         self.makeRequest(apiRequest: apiRequest)
                                         return
                                     }
                                     
                                     self.requestsQueue.append(apiRequest)
-                                    
-                                    if !tokenRefresher.isRefreshing() {
-                                        tokenRefresher
-                                            .refreshToken()
-                                            .done { result in
-                                                self.resumeQueue()
-                                            }.catch { error in
-                                                self.cancelQueue(error: error)
-                                        }
-                                    }
+                                    self.refreshToken()
                                 }
                             } else {
                                 apiRequest.pendingPromise.resolver.reject(error)
@@ -189,5 +182,29 @@ open class PSBaseApiClient {
     
     private func createRequest<T: PSApiRequest, R: URLRequestConvertible>(_ endpoint: R) -> T {
         return T.init(pendingPromise: Promise<Any>.pending(), requestEndPoint: endpoint)
+    }
+    
+    private func refreshToken() {
+        guard let tokenRefresher = self.tokenRefresher else { return }
+        
+        if refreshPromise == nil {
+            refreshPromise = tokenRefresher.refreshToken()
+            refreshPromise?
+                .done { result in
+                    self.getLockQueue().sync {
+                        self.resumeQueue()
+                        self.refreshPromise = nil
+                    }
+                }.catch { error in
+                    self.getLockQueue().sync {
+                        self.cancelQueue(error: error)
+                        self.refreshPromise = nil
+                    }
+                }
+        }
+    }
+    
+    private func getLockQueue() -> DispatchQueue {
+        return DispatchQueue(label: String(describing: self))
     }
 }
