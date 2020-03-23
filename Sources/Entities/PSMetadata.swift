@@ -1,21 +1,16 @@
 import ObjectMapper
 
 public class PSMetadata: Mappable {
-    public let total: Int
-    public let offset: Int
-    public let limit: Int
+    public var total: Int!
+    public var offset: Int!
+    public var limit: Int!
     
     required public init?(map: Map) {
-        do {
-            total = try map.value("total")
-            offset = try map.value("offset")
-            limit = try map.value("limit")
-            
-        } catch {
-            return nil
-        }
     }
     
     public func mapping(map: Map) {
+        total <- map["total"]
+        offset <- map["offset"]
+        limit <- map["limit"]
     }
 }

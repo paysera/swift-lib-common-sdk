@@ -11,6 +11,7 @@ open class PSBaseApiClient {
     private var requestsQueue = [PSApiRequest]()
     
     private var refreshPromise: Promise<Bool>?
+    private let lockQueue = DispatchQueue(label: "\(PSBaseApiClient.self)")
     
     public init(
         session: Session,
@@ -67,7 +68,7 @@ open class PSBaseApiClient {
     private func makeRequest(apiRequest: PSApiRequest) {
         guard let urlRequest = apiRequest.requestEndPoint.urlRequest else { return }
         
-        getLockQueue().sync {
+        self.lockQueue.async {
             if self.credentials.isExpired() {
                 self.requestsQueue.append(apiRequest)
                 self.refreshToken()
@@ -112,7 +113,7 @@ open class PSBaseApiClient {
                                     apiRequest.pendingPromise.resolver.reject(error)
                                     return
                                 }
-                                self.getLockQueue().sync {
+                                self.lockQueue.async {
                                     if self.credentials.hasRecentlyRefreshed() {
                                         self.makeRequest(apiRequest: apiRequest)
                                         return
@@ -191,20 +192,16 @@ open class PSBaseApiClient {
             refreshPromise = tokenRefresher.refreshToken()
             refreshPromise?
                 .done { result in
-                    self.getLockQueue().sync {
+                    self.lockQueue.async {
                         self.resumeQueue()
                         self.refreshPromise = nil
                     }
                 }.catch { error in
-                    self.getLockQueue().sync {
+                    self.lockQueue.async {
                         self.cancelQueue(error: error)
                         self.refreshPromise = nil
                     }
                 }
         }
-    }
-    
-    private func getLockQueue() -> DispatchQueue {
-        return DispatchQueue(label: String(describing: self))
     }
 }
