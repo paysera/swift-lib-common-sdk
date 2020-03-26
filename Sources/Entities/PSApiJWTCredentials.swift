@@ -12,7 +12,7 @@ public class PSApiJWTCredentials {
         if let token = token {
             return token.expiresAt!.timeIntervalSinceNow < 120
         }
-        return true
+        return false
     }
     
     public func hasRecentlyRefreshed() -> Bool {
