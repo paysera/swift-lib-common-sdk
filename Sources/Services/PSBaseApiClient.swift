@@ -69,7 +69,7 @@ open class PSBaseApiClient {
         guard let urlRequest = apiRequest.requestEndPoint.urlRequest else { return }
         
         self.lockQueue.async {
-            if self.credentials.isExpired() {
+            if self.tokenRefresher != nil, self.credentials.isExpired() {
                 self.requestsQueue.append(apiRequest)
                 self.refreshToken()
             } else {
