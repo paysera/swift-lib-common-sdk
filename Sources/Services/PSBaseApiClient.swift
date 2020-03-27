@@ -100,6 +100,7 @@ open class PSBaseApiClient {
                             apiRequest.pendingPromise.resolver.fulfill(responseData)
                         } else {
                             let error = self.mapError(body: responseData)
+                            error.statusCode = statusCode
                             
                             self.logger?.log(
                                 level: .ERROR,
