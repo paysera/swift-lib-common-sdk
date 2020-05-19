@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		607244522473E4A500EE8DBA /* PSTrustedSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 607244512473E4A500EE8DBA /* PSTrustedSession.swift */; };
 		ED716BFE22C88F76006D90F8 /* PSApiJWTCredentials.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED716BFD22C88F76006D90F8 /* PSApiJWTCredentials.swift */; };
 		ED716C0022C88FE7006D90F8 /* JWTDecode.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = ED716BFF22C88FE7006D90F8 /* JWTDecode.framework */; };
 		ED716C0222C8900A006D90F8 /* PSApiRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED716C0122C8900A006D90F8 /* PSApiRequest.swift */; };
@@ -43,6 +44,7 @@
 
 /* Begin PBXFileReference section */
 		1CD8617320EA1F32003E6195 /* PayseraCommonSDK.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = PayseraCommonSDK.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		607244512473E4A500EE8DBA /* PSTrustedSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PSTrustedSession.swift; sourceTree = "<group>"; };
 		ED716BFD22C88F76006D90F8 /* PSApiJWTCredentials.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PSApiJWTCredentials.swift; sourceTree = "<group>"; };
 		ED716BFF22C88FE7006D90F8 /* JWTDecode.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JWTDecode.framework; path = Carthage/Build/iOS/JWTDecode.framework; sourceTree = "<group>"; };
 		ED716C0122C8900A006D90F8 /* PSApiRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PSApiRequest.swift; sourceTree = "<group>"; };
@@ -137,6 +139,7 @@
 			children = (
 				ED716C0622C89088006D90F8 /* PSRequestAdapter.swift */,
 				ED716C1022C902D3006D90F8 /* PSBaseApiClient.swift */,
+				607244512473E4A500EE8DBA /* PSTrustedSession.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -311,6 +314,7 @@
 				ED716C0422C89040006D90F8 /* PSTokenRefresherProtocol.swift in Sources */,
 				ED716C0222C8900A006D90F8 /* PSApiRequest.swift in Sources */,
 				ED8FAFF022BA550100792600 /* PSBaseFilter.swift in Sources */,
+				607244522473E4A500EE8DBA /* PSTrustedSession.swift in Sources */,
 				ED716BFE22C88F76006D90F8 /* PSApiJWTCredentials.swift in Sources */,
 				ED8FB00422BA74F000792600 /* PSApiError.swift in Sources */,
 				ED716C0922C8909D006D90F8 /* PSRequestHeaders.swift in Sources */,
