@@ -1,7 +1,7 @@
 import Alamofire
 
 public class PSTrustedSession: Session {
-    public convenience init(interceptor: RequestInterceptor, hosts: [String]) {
+    public convenience init(interceptor: RequestInterceptor?, hosts: [String]) {
         let evaluator = PublicKeysTrustEvaluator(
             keys: Self.generateKeys(),
             performDefaultValidation: true,
