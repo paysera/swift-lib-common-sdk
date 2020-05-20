@@ -31,8 +31,17 @@ public class PSApiError: Mappable, Error {
     }
     
     public func isRefreshTokenExpired() -> Bool {
-        return error == "invalid_grant"
-            && (description == "Refresh token expired" || description == "No such refresh token")
+        guard let description = description else {
+            return false
+        }
+        
+        let expirationReasons = [
+            "Refresh token expired",
+            "No such refresh token",
+            "Refresh token status invalid",
+        ]
+        
+        return error == "invalid_grant" && expirationReasons.contains(description)
     }
     
     public func isTokenExpired() -> Bool {
