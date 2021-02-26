@@ -155,7 +155,10 @@ open class PSBaseApiClient {
         switch afError {
         case .explicitlyCancelled:
             error = .cancelled()
-        case .sessionTaskFailed(let e as URLError) where e.code == .notConnectedToInternet:
+        case .sessionTaskFailed(let e as URLError) where
+                e.code == .notConnectedToInternet ||
+                e.code == .networkConnectionLost ||
+                e.code == .dataNotAllowed:
             error = .noInternet()
         default:
             error = .unknown()
