@@ -1,7 +1,7 @@
-import Foundation
 import Alamofire
-import PromiseKit
+import Foundation
 import ObjectMapper
+import PromiseKit
 
 open class PSBaseApiClient {
     private let session: Session
@@ -11,7 +11,7 @@ open class PSBaseApiClient {
     private var requestsQueue = [PSApiRequest]()
     
     private var refreshPromise: Promise<Bool>?
-    private let lockQueue = DispatchQueue(label: "\(PSBaseApiClient.self)")
+    private let workQueue = DispatchQueue(label: "\(PSBaseApiClient.self)")
     
     public init(
         session: Session,
@@ -25,50 +25,69 @@ open class PSBaseApiClient {
         self.logger = logger
     }
     
+    public func cancelAllOperations() {
+        session.cancelAllRequests()
+    }
+    
     public func doRequest<RC: URLRequestConvertible, E: Mappable>(requestRouter: RC) -> Promise<[E]> {
         let request = createRequest(requestRouter)
-        makeRequest(apiRequest: request)
+        executeRequest(request)
         
         return request
             .pendingPromise
             .promise
-            .then(createPromiseWithArrayResult)
+            .map(on: workQueue) { body in
+                guard let objects = Mapper<E>().mapArray(JSONObject: body) else {
+                    throw self.mapError(body: body)
+                }
+                return objects
+            }
     }
     
     public func doRequest<RC: URLRequestConvertible, E: Mappable>(requestRouter: RC) -> Promise<E> {
         let request = createRequest(requestRouter)
-        makeRequest(apiRequest: request)
+        executeRequest(request)
         
         return request
             .pendingPromise
             .promise
-            .then(createPromise)
+            .map(on: workQueue) { body in
+                guard let object = Mapper<E>().map(JSONObject: body) else {
+                    throw self.mapError(body: body)
+                }
+                return object
+            }
     }
     
     public func doRequest<RC: URLRequestConvertible>(requestRouter: RC) -> Promise<Any> {
         let request = createRequest(requestRouter)
-        makeRequest(apiRequest: request)
+        executeRequest(request)
         
         return request
             .pendingPromise
             .promise
-            .then(createPromise)
     }
     
     public func doRequest<RC: URLRequestConvertible>(requestRouter: RC) -> Promise<Void> {
         let request = createRequest(requestRouter)
-        makeRequest(apiRequest: request)
+        executeRequest(request)
         
         return request
             .pendingPromise
             .promise
-            .then(createPromise)
+            .asVoid()
     }
     
-    private func makeRequest(apiRequest: PSApiRequest) {
-        guard let urlRequest = apiRequest.requestEndPoint.urlRequest else { return }
-        
-        self.lockQueue.async {
+    private func createRequest<RC: URLRequestConvertible>(_ endpoint: RC) -> PSApiRequest {
+        PSApiRequest(pendingPromise: Promise<Any>.pending(), requestEndPoint: endpoint)
+    }
+    
+    private func executeRequest(_ apiRequest: PSApiRequest) {
+        workQueue.async {
+            guard let urlRequest = apiRequest.requestEndPoint.urlRequest else {
+                return apiRequest.pendingPromise.resolver.reject(PSApiError.unknown())
+            }
+            
             if self.tokenRefresher != nil, self.credentials.isExpired() {
                 self.requestsQueue.append(apiRequest)
                 self.refreshToken()
@@ -81,128 +100,122 @@ open class PSBaseApiClient {
                 
                 self.session
                     .request(apiRequest.requestEndPoint)
-                    .responseJSON { (response) in
-                        guard let urlResponse = response.response else {
-                            apiRequest.pendingPromise.resolver.reject(PSApiError.unknown())
-                            return
-                        }
-                        
-                        let responseData = try? response.result.get()
-                        let statusCode = urlResponse.statusCode
-                        let logMessage = "<-- \(urlRequest.url!.absoluteString) \(statusCode)"
-                        
-                        if statusCode >= 200 && statusCode < 300 {
-                            self.logger?.log(
-                                level: .DEBUG,
-                                message: logMessage,
-                                response: urlResponse
-                            )
-                            apiRequest.pendingPromise.resolver.fulfill(responseData)
-                        } else {
-                            let error = self.mapError(body: responseData)
-                            error.statusCode = statusCode
-                            
-                            self.logger?.log(
-                                level: .ERROR,
-                                message: logMessage,
-                                response: urlResponse,
-                                error: error
-                            )
-                            
-                            if statusCode == 401 {
-                                guard self.tokenRefresher != nil else {
-                                    apiRequest.pendingPromise.resolver.reject(error)
-                                    return
-                                }
-                                self.lockQueue.async {
-                                    if self.credentials.hasRecentlyRefreshed() {
-                                        self.makeRequest(apiRequest: apiRequest)
-                                        return
-                                    }
-                                    
-                                    self.requestsQueue.append(apiRequest)
-                                    self.refreshToken()
-                                }
-                            } else {
-                                apiRequest.pendingPromise.resolver.reject(error)
-                            }
-                        }
-                }
+                    .responseJSON(queue: self.workQueue) { response in
+                        self.handleResponse(response, for: apiRequest, with: urlRequest)
+                    }
             }
         }
     }
     
-    public func cancelAllOperations() {
-        session.session.getAllTasks { tasks in
-            tasks.forEach { $0.cancel() }
+    private func handleResponse(
+        _ response: AFDataResponse<Any>,
+        for apiRequest: PSApiRequest,
+        with urlRequest: URLRequest
+    ) {
+        guard let urlResponse = response.response else {
+            return handleMissingUrlResponse(for: apiRequest, with: response.error)
+        }
+        
+        let responseData = try? response.result.get()
+        let statusCode = urlResponse.statusCode
+        let logMessage = "<-- \(urlRequest.url!.absoluteString) \(statusCode)"
+        
+        if 200 ... 299 ~= statusCode {
+            logger?.log(
+                level: .DEBUG,
+                message: logMessage,
+                response: urlResponse
+            )
+            apiRequest.pendingPromise.resolver.fulfill(responseData ?? "")
+        } else {
+            let error = mapError(body: responseData)
+            error.statusCode = statusCode
+            
+            logger?.log(
+                level: .ERROR,
+                message: logMessage,
+                response: urlResponse,
+                error: error
+            )
+            
+            if statusCode == 401 {
+                handleUnauthorizedRequest(apiRequest, error: error)
+            } else {
+                apiRequest.pendingPromise.resolver.reject(error)
+            }
         }
     }
     
-    private func resumeQueue() {
-        for request in requestsQueue {
-            makeRequest(apiRequest: request)
+    private func handleMissingUrlResponse(
+        for apiRequest: PSApiRequest,
+        with afError: AFError?
+    ) {
+        let error: PSApiError
+        
+        switch afError {
+        case .explicitlyCancelled:
+            error = .cancelled()
+        case .sessionTaskFailed(let e as URLError) where
+                e.code == .notConnectedToInternet ||
+                e.code == .networkConnectionLost ||
+                e.code == .dataNotAllowed:
+            error = .noInternet()
+        default:
+            error = .unknown()
         }
+        
+        apiRequest.pendingPromise.resolver.reject(error)
+    }
+    
+    private func handleUnauthorizedRequest(
+        _ apiRequest: PSApiRequest,
+        error: PSApiError
+    ) {
+        guard tokenRefresher != nil else {
+            return apiRequest.pendingPromise.resolver.reject(error)
+        }
+        
+        if credentials.hasRecentlyRefreshed() {
+            return executeRequest(apiRequest)
+        }
+        
+        requestsQueue.append(apiRequest)
+        refreshToken()
+    }
+    
+    private func mapError(body: Any?) -> PSApiError {
+        Mapper<PSApiError>().map(JSONObject: body) ?? .unknown()
+    }
+    
+    private func refreshToken() {
+        guard
+            refreshPromise == nil,
+            let tokenRefresher = tokenRefresher
+        else {
+            return
+        }
+        
+        refreshPromise = tokenRefresher.refreshToken()
+        refreshPromise?
+            .done(on: workQueue) { _ in
+                self.resumeQueue()
+                self.refreshPromise = nil
+            }
+            .catch(on: workQueue) { error in
+                self.cancelQueue(error: error)
+                self.refreshPromise = nil
+            }
+    }
+    
+    private func resumeQueue() {
+        requestsQueue.forEach(executeRequest)
         requestsQueue.removeAll()
     }
     
     private func cancelQueue(error: Error) {
-        for requests in requestsQueue {
-            requests.pendingPromise.resolver.reject(error)
+        requestsQueue.forEach { request in
+            request.pendingPromise.resolver.reject(error)
         }
         requestsQueue.removeAll()
-    }
-    
-    private func createPromiseWithArrayResult<T: Mappable>(body: Any) -> Promise<[T]> {
-        guard let objects = Mapper<T>().mapArray(JSONObject: body) else {
-            return Promise(error: mapError(body: body))
-        }
-        return Promise.value(objects)
-    }
-    
-    private func createPromise<T: Mappable>(body: Any) -> Promise<T> {
-        guard let object = Mapper<T>().map(JSONObject: body) else {
-            return Promise(error: mapError(body: body))
-        }
-        return Promise.value(object)
-    }
-    
-    private func createPromise(body: Any) -> Promise<Void> {
-        return Promise.value(())
-    }
-    
-    private func createPromise(body: Any) -> Promise<Any> {
-        return Promise.value(body)
-    }
-    
-    private func mapError(body: Any?) -> PSApiError {
-        if let apiError = Mapper<PSApiError>().map(JSONObject: body) {
-            return apiError
-        }
-        
-        return PSApiError.unknown()
-    }
-    
-    private func createRequest<T: PSApiRequest, R: URLRequestConvertible>(_ endpoint: R) -> T {
-        return T.init(pendingPromise: Promise<Any>.pending(), requestEndPoint: endpoint)
-    }
-    
-    private func refreshToken() {
-        guard let tokenRefresher = self.tokenRefresher else { return }
-        
-        if refreshPromise == nil {
-            refreshPromise = tokenRefresher.refreshToken()
-            refreshPromise?
-                .done { result in
-                    self.lockQueue.async {
-                        self.resumeQueue()
-                        self.refreshPromise = nil
-                    }
-                }.catch { error in
-                    self.lockQueue.async {
-                        self.cancelQueue(error: error)
-                        self.refreshPromise = nil
-                    }
-                }
-        }
     }
 }

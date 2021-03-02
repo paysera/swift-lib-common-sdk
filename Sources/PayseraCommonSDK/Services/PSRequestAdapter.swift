@@ -1,6 +1,5 @@
-import Foundation
 import Alamofire
-import CommonCrypto
+import Foundation
 
 public class PSRequestAdapter: RequestInterceptor {
     private let headers: PSRequestHeaders?
@@ -11,9 +10,17 @@ public class PSRequestAdapter: RequestInterceptor {
         self.headers = headers
     }
     
-    public func adapt(_ urlRequest: URLRequest, for session: Session, completion: @escaping (Result<URLRequest, Error>) -> Void) {
+    public func adapt(
+        _ urlRequest: URLRequest,
+        for session: Session,
+        completion: @escaping (Result<URLRequest, Error>) -> Void
+    ) {
+        guard let token = credentials.token?.string else {
+            return completion(.failure(PSApiError.unauthorized()))
+        }
+        
         var urlRequest = urlRequest
-        urlRequest.headers.add(.authorization(bearerToken: credentials.token?.string ?? ""))
+        urlRequest.headers.add(.authorization(bearerToken: token))
         
         if let headers = headers {
             headers.headers.forEach {
@@ -24,7 +31,12 @@ public class PSRequestAdapter: RequestInterceptor {
         completion(.success(urlRequest))
     }
     
-    public func retry(_ request: Request, for session: Session, dueTo error: Error, completion: @escaping (RetryResult) -> Void) {
+    public func retry(
+        _ request: Request,
+        for session: Session,
+        dueTo error: Error,
+        completion: @escaping (RetryResult) -> Void
+    ) {
         completion(.doNotRetry)
     }
 }
