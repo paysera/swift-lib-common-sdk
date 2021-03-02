@@ -139,7 +139,7 @@ open class PSBaseApiClient {
             )
             
             if statusCode == 401 {
-                handleUnautohrizedRequest(apiRequest, error: error)
+                handleUnauthorizedRequest(apiRequest, error: error)
             } else {
                 apiRequest.pendingPromise.resolver.reject(error)
             }
@@ -167,7 +167,7 @@ open class PSBaseApiClient {
         apiRequest.pendingPromise.resolver.reject(error)
     }
     
-    private func handleUnautohrizedRequest(
+    private func handleUnauthorizedRequest(
         _ apiRequest: PSApiRequest,
         error: PSApiError
     ) {
