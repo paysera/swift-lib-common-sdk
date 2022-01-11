@@ -1,4 +1,3 @@
-import Foundation
 import ObjectMapper
 
 public class PSApiError: Mappable, Error {
@@ -9,10 +8,16 @@ public class PSApiError: Mappable, Error {
     public var data: Any?
     public var errors: [PSApiFieldError]?
     
-    public init(error: String? = nil, description: String? = nil, statusCode: Int? = nil) {
+    public init(
+        error: String? = nil,
+        description: String? = nil,
+        statusCode: Int? = nil,
+        data: Any? = nil
+    ) {
         self.error = error
         self.description = description
         self.statusCode = statusCode
+        self.data = data
     }
     
     required public init?(map: Map) {
@@ -27,7 +32,7 @@ public class PSApiError: Mappable, Error {
     }
     
     public func isUnauthorized() -> Bool {
-        return error == "unauthorized"
+        error == "unauthorized"
     }
     
     public func isRefreshTokenExpired() -> Bool {
@@ -45,39 +50,43 @@ public class PSApiError: Mappable, Error {
     }
     
     public func isTokenExpired() -> Bool {
-        return error == "invalid_grant" && description == "Token has expired"
+        error == "invalid_grant" && description == "Token has expired"
     }
     
     public func isInvalidTimestamp() -> Bool {
-        return error == "invalid_timestamp"
+        error == "invalid_timestamp"
     }
     
     public func isNoInternet() -> Bool {
-        return error == "no_internet"
+        error == "no_internet"
     }
     
     class public func unknown() -> PSApiError {
-        return PSApiError(error: "unknown")
+        PSApiError(error: "unknown")
     }
     
     class public func unauthorized() -> PSApiError {
-        return PSApiError(error: "unauthorized")
+        PSApiError(error: "unauthorized")
     }
     
     public class func mapping(json: String) -> PSApiError {
-        return PSApiError(error: "mapping", description: "mapping failed: \(json)")
+        PSApiError(
+            error: "internal_mapping_failure",
+            description: "Mapping failed: \(json)",
+            data: json
+        )
     }
     
     public class func noInternet() -> PSApiError {
-        return PSApiError(error: "no_internet", description: "No internet connection")
+        PSApiError(error: "no_internet", description: "No internet connection")
     }
     
     public class func internalServerError() -> PSApiError {
-        return PSApiError(error: "internal_server_error", description: "Server Error")
+        PSApiError(error: "internal_server_error", description: "Server Error")
     }
     
     public class func cancelled() -> PSApiError {
-        return PSApiError(error: "cancelled")
+        PSApiError(error: "cancelled")
     }
 }
 
