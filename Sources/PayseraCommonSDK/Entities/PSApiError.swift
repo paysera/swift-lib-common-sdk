@@ -90,7 +90,7 @@ public class PSApiError: Mappable, Error {
     }
     
     public class func silenced() -> PSApiError {
-        PSApiError(error: nil)
+        PSApiError(error: "silenced")
     }
 }
 
