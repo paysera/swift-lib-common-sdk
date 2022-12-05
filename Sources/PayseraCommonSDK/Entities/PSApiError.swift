@@ -88,6 +88,10 @@ public class PSApiError: Mappable, Error {
     public class func cancelled() -> PSApiError {
         PSApiError(error: "cancelled")
     }
+    
+    public class func silenced() -> PSApiError {
+        PSApiError(error: "silenced")
+    }
 }
 
 public class PSApiFieldError: Mappable {
