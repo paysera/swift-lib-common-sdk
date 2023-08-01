@@ -7,28 +7,31 @@ public class PSApiError: Mappable, Error {
     public var properties: [String: Any]?
     public var data: Any?
     public var errors: [PSApiFieldError]?
+    public var correlationID: String?
     
     public init(
         error: String? = nil,
         description: String? = nil,
         statusCode: Int? = nil,
-        data: Any? = nil
+        data: Any? = nil,
+        correlationID: String? = nil
     ) {
         self.error = error
         self.description = description
         self.statusCode = statusCode
         self.data = data
+        self.correlationID = correlationID
     }
     
-    required public init?(map: Map) {
-    }
+    required public init?(map: Map) {}
     
     public func mapping(map: Map) {
-        error       <- map["error"]
-        errors      <- map["errors"]
-        description <- map["error_description"]
-        properties  <- map["error_properties"]
-        data        <- map["error_data"]
+        error           <- map["error"]
+        errors          <- map["errors"]
+        description     <- map["error_description"]
+        properties      <- map["error_properties"]
+        data            <- map["error_data"]
+        correlationID   <- map["correlation_id"]
     }
     
     public func isUnauthorized() -> Bool {
@@ -50,7 +53,8 @@ public class PSApiError: Mappable, Error {
     }
     
     public func isTokenExpired() -> Bool {
-        error == "invalid_grant" && description == "Token has expired"
+        error == "invalid_grant" &&
+        description == "Token has expired"
     }
     
     public func isInvalidTimestamp() -> Bool {
@@ -80,9 +84,13 @@ public class PSApiError: Mappable, Error {
     public class func noInternet() -> PSApiError {
         PSApiError(error: "no_internet", description: "No internet connection")
     }
-    
-    public class func internalServerError() -> PSApiError {
-        PSApiError(error: "internal_server_error", description: "Server Error")
+        
+    public class func internalServerError(with correlationID: String?) -> PSApiError {
+        PSApiError(
+            error: "internal_server_error",
+            description: "Server Error",
+            correlationID: correlationID
+        )
     }
     
     public class func cancelled() -> PSApiError {
@@ -92,6 +100,7 @@ public class PSApiError: Mappable, Error {
     public class func silenced() -> PSApiError {
         PSApiError(error: "silenced")
     }
+    
 }
 
 public class PSApiFieldError: Mappable {
@@ -99,8 +108,7 @@ public class PSApiFieldError: Mappable {
     public var field: String!
     public var message: String!
     
-    required public init?(map: Map) {
-    }
+    required public init?(map: Map) {}
     
     public func mapping(map: Map) {
         code    <- map["code"]
